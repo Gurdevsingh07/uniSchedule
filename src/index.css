@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --transition-duration: 500ms;
+    --transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * {
+    transition: background-color var(--transition-duration) var(--transition-timing),
+                border-color var(--transition-duration) var(--transition-timing),
+                color var(--transition-duration) var(--transition-timing),
+                box-shadow var(--transition-duration) var(--transition-timing);
+  }
+
+  body {
+    @apply antialiased;
+  }
+}
+
+@layer components {
+  .theme-transition {
+    @apply transition-all duration-500 ease-in-out;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .timetable-cell {
+    @apply relative h-20 p-2 transition-colors duration-200;
+  }
+  
+  .timetable-cell-hover {
+    @apply hover:bg-gray-50 dark:hover:bg-gray-700/50;
+  }
+}
+
+@keyframes shine {
+  0% { transform: translateX(-100%); opacity: 0; }
+  60% { opacity: 1; }
+  100% { transform: translateX(200%); opacity: 0; }
+}
+.animate-shine {
+  animation: shine 1.2s linear infinite;
+}
+
+/* Moving gradient animations */
+@keyframes gradient-x {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes gradient-y {
+  0% {
+    background-position: 50% 0%;
+  }
+  100% {
+    background-position: 50% 100%;
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-gradient-x {
+  animation: gradient-x 15s linear infinite alternate;
+}
+
+.animate-gradient-y {
+  animation: gradient-y 15s linear infinite alternate;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 5s ease-in-out infinite;
+}
+
+/* Custom button shine effect */
+@keyframes button-shine {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 200%;
+  }
+}
+
+.animate-shine {
+  animation: button-shine 4s infinite linear;
+}

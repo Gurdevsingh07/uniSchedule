@@ -1,0 +1,74 @@
+{
+  "teachers": [
+    {
+      "name": "Dr. James Wilson",
+      "department": "Physics",
+      "email": "james.wilson@college.edu",
+      "phone": "+1 (555) 123-4567",
+      "subjects": ["Quantum Mechanics", "Classical Physics", "Thermodynamics"]
+    },
+    {
+      "name": "Prof. Emily Chen",
+      "department": "Computer Science",
+      "email": "emily.chen@college.edu",
+      "phone": "+1 (555) 234-5678",
+      "subjects": ["Machine Learning", "Artificial Intelligence", "Data Science"]
+    },
+    {
+      "name": "Dr. Maria Garcia",
+      "department": "Mathematics",
+      "email": "maria.garcia@college.edu",
+      "phone": "+1 (555) 345-6789",
+      "subjects": ["Advanced Calculus", "Linear Algebra", "Statistics"]
+    },
+    {
+      "name": "Prof. Robert Brown",
+      "department": "Chemistry",
+      "email": "robert.brown@college.edu",
+      "phone": "+1 (555) 456-7890",
+      "subjects": ["Organic Chemistry", "Inorganic Chemistry", "Biochemistry"]
+    },
+    {
+      "name": "Dr. Sarah Thompson",
+      "department": "Biology",
+      "email": "sarah.thompson@college.edu",
+      "phone": "+1 (555) 567-8901",
+      "subjects": ["Molecular Biology", "Genetics", "Cell Biology"]
+    },
+    {
+      "name": "Prof. Michael Lee",
+      "department": "Engineering",
+      "email": "michael.lee@college.edu",
+      "phone": "+1 (555) 678-9012",
+      "subjects": ["Robotics", "Control Systems", "Digital Electronics"]
+    },
+    {
+      "name": "Dr. Lisa Anderson",
+      "department": "Psychology",
+      "email": "lisa.anderson@college.edu",
+      "phone": "+1 (555) 789-0123",
+      "subjects": ["Cognitive Psychology", "Behavioral Science", "Research Methods"]
+    },
+    {
+      "name": "Prof. David Kim",
+      "department": "Economics",
+      "email": "david.kim@college.edu",
+      "phone": "+1 (555) 890-1234",
+      "subjects": ["Microeconomics", "Macroeconomics", "Economic Theory"]
+    },
+    {
+      "name": "Dr. Rachel Patel",
+      "department": "Literature",
+      "email": "rachel.patel@college.edu",
+      "phone": "+1 (555) 901-2345",
+      "subjects": ["Modern Literature", "Creative Writing", "Literary Theory"]
+    },
+    {
+      "name": "Prof. Thomas Wright",
+      "department": "History",
+      "email": "thomas.wright@college.edu",
+      "phone": "+1 (555) 012-3456",
+      "subjects": ["World History", "European History", "Historical Research"]
+    }
+  ]
+} 
