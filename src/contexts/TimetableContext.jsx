@@ -191,17 +191,50 @@ const TimetableProvider = ({ children }) => {
     );
 
     const unsub = onSnapshot(notificationsQuery, (snapshot) => {
-      const newNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => a.id.localeCompare(b.id));
+      const newNotifications = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // Ensure timestamp is a JS Date object for consistent comparison
+          timestamp: data.timestamp && typeof data.timestamp.toDate === 'function' 
+            ? data.timestamp.toDate() 
+            : (data.timestamp ? new Date(data.timestamp) : null)
+        };
+      }).sort((a, b) => {
+        const idA = String(a.id || '');
+        const idB = String(b.id || '');
+        return idA.localeCompare(idB);
+      });
       
       setNotifications(prevNotifications => {
-        const prevSorted = [...prevNotifications].sort((a, b) => a.id.localeCompare(b.id));
-        // Compare stringified versions to check for actual changes
-        if (JSON.stringify(newNotifications) === JSON.stringify(prevSorted)) {
-          return prevNotifications; // No change, return old state to prevent re-render
+        if (prevNotifications.length !== newNotifications.length) {
+          return newNotifications;
         }
-        return newNotifications; // Data changed, return new state
+
+        const sortedPrevNotifications = [...prevNotifications].sort((a, b) => {
+          const idA = String(a.id || '');
+          const idB = String(b.id || '');
+          return idA.localeCompare(idB);
+        });
+
+        for (let i = 0; i < newNotifications.length; i++) {
+          const prevNotif = sortedPrevNotifications[i];
+          const newNotif = newNotifications[i];
+
+          if (
+            prevNotif.id !== newNotif.id ||
+            prevNotif.title !== newNotif.title ||
+            prevNotif.message !== newNotif.message ||
+            prevNotif.type !== newNotif.type ||
+            prevNotif.recipientId !== newNotif.recipientId ||
+            (prevNotif.timestamp?.getTime() || null) !== (newNotif.timestamp?.getTime() || null)
+          ) {
+            return newNotifications; // Found a difference
+          }
+        }
+        return prevNotifications; // No differences found, return old state
       });
-      // TODO: Implement proper read/unread status and dismissal sync
     });
 
     return () => unsub();
@@ -253,41 +286,77 @@ const TimetableProvider = ({ children }) => {
       const finalTitle = typeof notification.title === 'string' ? notification.title : 'Notification';
       const finalType = typeof notification.type === 'string' ? notification.type : 'info';
       const finalMessage = typeof notification.message === 'string' ? notification.message : 'No message content provided.';
+      
+      // Detect notification category based on content or explicit category
+      let category = notification.category || 'general';
+      
+      // Auto-detect category if not explicitly provided
+      if (category === 'general') {
+        if (finalTitle.toLowerCase().includes('feedback') || finalMessage.toLowerCase().includes('feedback')) {
+          category = 'feedback';
+        } else if (finalTitle.toLowerCase().includes('preference') || finalMessage.toLowerCase().includes('preference')) {
+          category = 'preference';
+        }
+      }
 
       const notificationData = {
         ...notification, // Spread original notification first to keep any other properties
         title: finalTitle,
         type: finalType,
-        message: finalMessage, // Overwrite with guaranteed string value
+        message: finalMessage,
+        category: category, // Add category for filtering and special popups
         senderId: currentUser.id,
         recipientId: recipientId,
         timestamp: new Date().toISOString(),
         read: false,
       };
-      await addDoc(collection(db, 'userNotifications'), notificationData);
-      // Local state is updated by the Firestore listener
-      setNotifications(prev => [...prev, { id: Date.now(), ...notificationData }]); // Add locally for immediate feedback
+      
+      const docRef = await addDoc(collection(db, 'userNotifications'), notificationData);
+      
+      // Add the Firestore document ID to the local notification
+      const localNotification = { 
+        ...notificationData, 
+        id: docRef.id // Use the actual Firestore ID
+      };
+      
+      // Update local state for immediate feedback
+      setNotifications(prev => [...prev, localNotification]);
 
     } catch (error) {
       console.error('Error sending notification:', error);
     }
   }, [currentUser]);
 
-  // Dismiss notification (will need to update in Firestore too)
-  const dismissNotification = useCallback(async (id) => {
+  // Dismiss notification - can either mark as read or delete based on options
+  const dismissNotification = useCallback(async (id, options = {}) => {
     try {
+      // Check if the notification exists
       const notificationRef = doc(db, 'userNotifications', id);
-      // Option 1: Mark as read
-      await updateDoc(notificationRef, { read: true }); 
-      // Option 2: Delete the notification (uncomment if preferred)
-      // await deleteDoc(notificationRef);
-
-      // The Firestore listener will update the local state automatically.
-      // If you want immediate local removal before listener updates, you can do this,
-      // but it might cause a flicker if listener is fast.
-      // setNotifications(prev => prev.filter(n => n.id !== id));
+      const notificationSnap = await getDoc(notificationRef);
+      
+      if (!notificationSnap.exists()) {
+        console.warn(`Notification with ID ${id} not found`);
+        return;
+      }
+      
+      // If markAsRead option is true, update the notification to mark it as read
+      // Otherwise, delete the notification
+      if (options.markAsRead) {
+        await updateDoc(notificationRef, { read: true });
+        
+        // Update local state immediately for better UX
+        setNotifications(prev => 
+          prev.map(n => n.id === id ? { ...n, read: true } : n)
+        );
+      } else {
+        // Delete the notification
+        await deleteDoc(notificationRef);
+        
+        // Update local state immediately for better UX
+        setNotifications(prev => prev.filter(n => n.id !== id));
+      }
     } catch (error) {
-      console.error("Error dismissing notification: ", error);
+      console.error("Error handling notification: ", error);
     }
   }, []);
 
@@ -305,13 +374,42 @@ const TimetableProvider = ({ children }) => {
     await setDoc(doc(db, 'preferences', 'faculty'), newFacultyPrefs);
     // Local state will be updated by the Firestore listener
     
+    // Get faculty name if available
+    const facultyName = preference.facultyName || 'A faculty member';
+    
+    // Send notification with explicit preference category
     addNotification({
       type: 'success',
+      category: 'preference', // Explicitly set category for special popup
       title: 'Faculty Preference Saved',
-      message: `Preference for ${preference.subject} has been saved.`,
-      timestamp: new Date().toISOString()
+      message: `${facultyName} has submitted a preference for ${preference.subject}.`,
+      timestamp: new Date().toISOString(),
+      preferenceData: { // Include additional data for detailed view
+        subject: preference.subject,
+        facultyId: facultyId,
+        preferenceType: 'faculty'
+      }
     }, facultyId);
-  }, [addNotification, facultyPreferences]); // Added facultyPreferences to dependency array
+    
+    // Also notify admin if this wasn't submitted by an admin
+    if (currentUser?.role !== 'admin') {
+      // Find admin users to notify
+      const adminId = 'admin1'; // Replace with actual admin ID or logic to find admins
+      addNotification({
+        type: 'info',
+        category: 'preference',
+        title: 'New Faculty Preference',
+        message: `${facultyName} has submitted a preference for ${preference.subject}.`,
+        timestamp: new Date().toISOString(),
+        userName: facultyName,
+        preferenceData: {
+          subject: preference.subject,
+          facultyId: facultyId,
+          preferenceType: 'faculty'
+        }
+      }, adminId);
+    }
+  }, [addNotification, facultyPreferences, currentUser]); // Added currentUser to dependency array
 
   const saveStudentPreference = useCallback(async (studentId, preference) => {
     const currentStudentPrefs = studentPreferences; // Use the state directly for current value
@@ -326,13 +424,42 @@ const TimetableProvider = ({ children }) => {
     await setDoc(doc(db, 'preferences', 'students'), newStudentPrefs);
     // Local state will be updated by the Firestore listener
     
+    // Get student name if available
+    const studentName = preference.studentName || 'A student';
+    
+    // Send notification with explicit preference category
     addNotification({
       type: 'success',
+      category: 'preference', // Explicitly set category for special popup
       title: 'Student Preference Saved',
-      message: `Preference for ${preference.subject} has been saved.`,
-      timestamp: new Date().toISOString()
+      message: `Your preference for ${preference.subject} has been saved.`,
+      timestamp: new Date().toISOString(),
+      preferenceData: { // Include additional data for detailed view
+        subject: preference.subject,
+        studentId: studentId,
+        preferenceType: 'student'
+      }
     }, studentId);
-  }, [addNotification, studentPreferences]); // Added studentPreferences to dependency array
+    
+    // Also notify admin
+    if (currentUser?.role !== 'admin') {
+      // Find admin users to notify
+      const adminId = 'admin1'; // Replace with actual admin ID or logic to find admins
+      addNotification({
+        type: 'info',
+        category: 'preference',
+        title: 'New Student Preference',
+        message: `${studentName} has submitted a preference for ${preference.subject}.`,
+        timestamp: new Date().toISOString(),
+        userName: studentName,
+        preferenceData: {
+          subject: preference.subject,
+          studentId: studentId,
+          preferenceType: 'student'
+        }
+      }, adminId);
+    }
+  }, [addNotification, studentPreferences, currentUser]); // Added currentUser to dependency array
 
   // Get all preferences (both faculty and student)
   const getAllPreferences = useCallback(() => {
@@ -359,13 +486,28 @@ const TimetableProvider = ({ children }) => {
       });
       console.log('Feedback saved with ID:', docRef.id);
 
-      // Notify Admin(s) - replace 'ADMIN_USER_ID' with actual admin ID or a group ID
-      // You might need a more robust way to identify admins
-      const adminRecipientId = 'ADMIN_USER_ID'; // Placeholder
+      // Send confirmation notification to the user who submitted feedback
+      if (feedbackPayloadWithUser.userId) {
+        addNotification({
+          type: 'success',
+          category: 'feedback',
+          title: 'Feedback Submitted',
+          message: 'Thank you for your feedback. We will review it shortly.',
+          timestamp: new Date().toISOString(),
+          feedbackId: docRef.id
+        }, feedbackPayloadWithUser.userId);
+      }
+
+      // Notify Admin(s) with special popup
+      const adminRecipientId = 'admin1'; // Replace with actual admin ID
       addNotification({
         type: 'info',
+        category: 'feedback', // Explicitly set category for special popup
         title: 'New User Feedback Received',
-        message: `From: ${feedbackPayloadWithUser.userName || feedbackPayloadWithUser.userId}. Type: ${feedbackPayloadWithUser.type}`,
+        message: feedbackPayloadWithUser.message,
+        userName: feedbackPayloadWithUser.userName || 'Anonymous User',
+        feedbackType: feedbackPayloadWithUser.type || 'General',
+        feedbackId: docRef.id, // Store reference to the feedback document
       }, adminRecipientId);
 
       return { success: true, id: docRef.id };
